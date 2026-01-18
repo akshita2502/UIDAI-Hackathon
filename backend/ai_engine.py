@@ -1,10 +1,12 @@
 """AI engine module for UIDAI Sentinel fraud detection algorithms"""
 
 import random
+from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 from sqlalchemy.orm import Session
 from sklearn.ensemble import IsolationForest
 import models
+# from functools import lru_cache
 
 
 def get_dataframe(db: Session, model_class):
@@ -275,26 +277,37 @@ def analyze_sunday_shift(db: Session):
 
 # --- AGGREGATE MAP ENDPOINT ---
 def get_all_map_anomalies(db: Session):
-    """Combines map data from all 6 engines for the Main Panel"""
-    # Note: In production, optimize this to avoid re-calculating everything.
-    # For hackathon, calling functions sequentially is acceptable.
+    """
+    Combines map data from all 6 engines for the Main Panel.
+    Optimized for parallel execution to avoid sequential bottleneck.
+    """
+    # Use ThreadPoolExecutor to run analysis functions in parallel
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        # Submit all tasks in parallel
+        phantom_future = executor.submit(analyze_phantom_village, db)
+        update_future = executor.submit(analyze_update_mill, db)
+        bio_future = executor.submit(analyze_biometric_bypass, db)
+        sunday_future = executor.submit(analyze_sunday_shift, db)
 
-    phantom = analyze_phantom_village(db)["map_data"]
-    update_mill = analyze_update_mill(db)["map_data"]
-    bio_bypass = analyze_biometric_bypass(db)["map_data"]
-    sunday = analyze_sunday_shift(db)["map_data"]
+        # Collect results as they complete
+        phantom = phantom_future.result()["map_data"]
+        update_mill = update_future.result()["map_data"]
+        bio_bypass = bio_future.result()["map_data"]
+        sunday = sunday_future.result()["map_data"]
 
     # Add coordinates (MOCKING LAT/LNG based on Pincode for Visualization)
-    # Since real geocoding requires external APIs not allowed or rate-limited.
     def mock_coords(pincode):
         # Deterministic pseudo-random lat/lng roughly within India
-
-        random.seed(pincode)  # noqa: F821
-        lat = 20 + (random.random() * 10)  # noqa: F821  # 20-30 Lat
-        lng = 75 + (random.random() * 10)  # noqa: F821  # 75-85 Lng
+        random.seed(pincode)
+        lat = 20 + (random.random() * 10)  # 20-30 Lat
+        lng = 75 + (random.random() * 10)  # 75-85 Lng
         return lat, lng
 
     all_anomalies = phantom + update_mill + bio_bypass + sunday
+
+    # Limit to 500 anomalies max for UI performance
+    if len(all_anomalies) > 500:
+        all_anomalies = all_anomalies[:500]
 
     final_data = []
     for item in all_anomalies:
