@@ -1,4 +1,4 @@
-"""API Routes for UIDAI Sentinel - Fraud Detection System"""
+"""API routes for UIDAI Sentinel fraud detection analytics"""
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session

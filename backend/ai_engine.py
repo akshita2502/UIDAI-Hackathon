@@ -1,10 +1,11 @@
+"""AI engine module for UIDAI Sentinel fraud detection algorithms"""
+
+import random
 import pandas as pd
-import numpy as np
 from sqlalchemy.orm import Session
 from sklearn.ensemble import IsolationForest
-from sklearn.linear_model import LinearRegression
 import models
-from pandas import Series
+
 
 def get_dataframe(db: Session, model_class):
     """Helper to convert SQL table to Pandas DataFrame"""
@@ -14,130 +15,292 @@ def get_dataframe(db: Session, model_class):
         raise ValueError("Database connection is not available")
     return pd.read_sql(query.statement, conn)
 
-# --- 1. THE PHANTOM VILLAGE (Fake ID Ring) ---
+
+# --- 1. PHANTOM VILLAGE (Fake ID Ring) ---
 def analyze_phantom_village(db: Session):
     """
-    Detects spikes in Adult Enrolment (age_18_greater) using Isolation Forest.
-    Returns: List of anomalies.
+    Detects Phantom Village (Fake ID Ring) anomalies using Isolation Forest.
+
+    Returns dictionary with:
+    - chart_data: State-wise breakdown of anomalies vs normal registrations
+    - map_data: Geographic distribution of critical anomalies
     """
     df = get_dataframe(db, models.EnrolmentData)
-    if df.empty: return []
+    if df.empty:
+        return {"chart_data": [], "map_data": []}
 
-    # ML Logic: Isolation Forest
+    # Isolation Forest
     model = IsolationForest(contamination=0.01, random_state=42)
-    df['anomaly'] = model.fit_predict(df[['age_18_greater']].fillna(0))
-    
-    # Filter Anomalies (-1)
-    anomalies = df[df['anomaly'] == -1].copy()
-    anomalies['severity'] = 'CRITICAL'
-    
-    # Format for API
-    return anomalies[['date', 'state', 'district', 'pincode', 'age_18_greater', 'severity']].to_dict(orient='records')
+    df["anomaly"] = model.fit_predict(df[["age_18_greater"]].fillna(0))
 
-# --- 2. THE UPDATE MILL (Unauthorized Bulk Ops) ---
+    # 1. Chart Data: State-wise Anomalies
+    # Group by state and count anomalies vs normal
+    state_stats = df.groupby(["state", "anomaly"]).size().unstack(fill_value=0)
+    # Rename columns: -1 is Anomaly, 1 is Normal
+    if -1 in state_stats.columns:
+        state_stats = state_stats.rename(
+            columns={-1: "anomaly_count", 1: "normal_count"}
+        )
+    else:
+        state_stats["anomaly_count"] = 0
+        state_stats = state_stats.rename(columns={1: "normal_count"})
+
+    chart_data = state_stats.reset_index()[
+        ["state", "anomaly_count", "normal_count"]
+    ].to_dict(orient="records")
+
+    # 2. Map Data: Critical Anomalies
+    anomalies = df[df["anomaly"] == -1].copy()
+    anomalies["severity"] = "CRITICAL"
+    anomalies["type"] = "Phantom Village"
+    map_data = anomalies[
+        ["pincode", "district", "state", "age_18_greater", "severity", "type"]
+    ].to_dict(orient="records")
+
+    return {"chart_data": chart_data, "map_data": map_data}
+
+
+# --- 2. UPDATE MILL (Unauthorized Bulk Ops) ---
 def analyze_update_mill(db: Session):
     """
-    Detects statistical outliers in Demographic Updates (demo_age_17_).
-    Returns: Top suspect pincodes.
+    Detects Update Mill (Unauthorized Bulk Operations) anomalies.
+    Uses Z-Score outlier detection on demographic updates per district.
+
+    Returns dictionary with:
+    - chart_data: District-wise z-score distribution
+    - map_data: Geographic hotspots of suspicious activities
     """
     df = get_dataframe(db, models.DemographicData)
-    if df.empty: return []
+    if df.empty:
+        return {"chart_data": [], "map_data": []}
 
-    # Logic: Z-Score Outlier Detection
-    # Calculate Mean/Std per District to account for local population differences
-    stats = df.groupby('district')['demo_age_17_'].transform(lambda x: (x - x.mean()) / x.std())
-    df['z_score'] = stats.fillna(0)
-    
-    # Threshold: Z > 3 (3 Standard Deviations away)
-    suspects = df[df['z_score'] > 3].sort_values(by='z_score', ascending=False)
-    
-    return suspects[['date', 'district', 'pincode', 'demo_age_17_', 'z_score']].head(50).to_dict(orient='records')
+    # Z-Score Calculation
+    stats = df.groupby("district")["demo_age_17_"].transform(
+        lambda x: (x - x.mean()) / x.std()
+    )
+    df["z_score"] = stats.fillna(0)
 
-# --- 3. THE BIOMETRIC BYPASS (Incomplete Verification) ---
+    # Filter for Chart (Top 20 suspicious districts)
+    top_districts = (
+        df[["district", "z_score"]]
+        .drop_duplicates()
+        .sort_values("z_score", ascending=False)
+        .head(20)
+    )
+    chart_data = top_districts.to_dict(orient="records")
+
+    # Filter for Map (Z-Score > 3)
+    suspects = df[df["z_score"] > 3].copy()
+    suspects["type"] = "Update Mill"
+    map_data = suspects[
+        ["pincode", "district", "state", "z_score", "demo_age_17_", "type"]
+    ].to_dict(orient="records")
+
+    return {"chart_data": chart_data, "map_data": map_data}
+
+
+# --- 3. BIOMETRIC BYPASS (Incomplete Verification) ---
 def analyze_biometric_bypass(db: Session):
     """
-    Finds Pincodes with High Demographic Updates but Near-Zero Biometric Updates.
+    Detects Biometric Bypass (Incomplete Verification) anomalies.
+    Identifies pincodes with high demographic updates but low biometric updates.
+
+    Returns dictionary with:
+    - chart_data: Risk score distribution and scatter plot data
+    - map_data: Geographic visualization of bypass attempts
     """
     demo_df = get_dataframe(db, models.DemographicData)
     bio_df = get_dataframe(db, models.BiometricData)
-    if demo_df.empty or bio_df.empty: return []
+    if demo_df.empty or bio_df.empty:
+        return {"chart_data": [], "map_data": []}
 
-    # Merge on Location + Date
-    merged = pd.merge(demo_df, bio_df, on=['date', 'state', 'district', 'pincode'])
-    
-    # Logic: High Ratio of Demo to Bio
-    # Filter: Significant activity (Demo > 50) but suspicious Bio (< 10% of Demo)
-    suspects = merged[
-        (merged['demo_age_17_'] > 50) & 
-        (merged['bio_age_17_'] < (merged['demo_age_17_'] * 0.1))
-    ].copy()
-    
-    suspects['risk_score'] = suspects['demo_age_17_'] / (suspects['bio_age_17_'] + 1)
-    
-    return suspects.sort_values('risk_score', ascending=False).head(50).to_dict(orient='records')
+    merged = pd.merge(demo_df, bio_df, on=["date", "state", "district", "pincode"])
 
-# --- 4. THE SCHOLARSHIP GHOST (Child Age/Bio Mismatch) ---
+    # Risk Score
+    merged["risk_score"] = merged["demo_age_17_"] / (merged["bio_age_17_"] + 1)
+
+    # 1. Chart Data: Scatter Plot (Sample 200 points to avoid browser lag)
+    chart_data = (
+        merged[["demo_age_17_", "bio_age_17_", "risk_score"]]
+        .sample(min(200, len(merged)))
+        .to_dict(orient="records")
+    )
+
+    # 2. Map Data: High Risk
+    high_risk = merged[merged["risk_score"] > 5].copy()  # Threshold
+    high_risk["type"] = "Biometric Bypass"
+    map_data = high_risk[
+        ["pincode", "district", "state", "risk_score", "type"]
+    ].to_dict(orient="records")
+
+    return {"chart_data": chart_data, "map_data": map_data}
+
+
+# --- 4. SCHOLARSHIP GHOST (Child Age/Bio Mismatch) ---
 def analyze_scholarship_ghost(db: Session):
     """
-    Detects districts where Child Demographic updates > Child Biometric updates.
-    (Implies changing age/details without child present).
+    Detects Scholarship Ghost (Child Age/Bio Mismatch) anomalies.
+    Identifies districts where child demographic updates exceed biometric updates.
+
+    Returns dictionary with:
+    - chart_data: District-wise child demographic vs biometric comparison
+    - map_data: Geographic distribution of mismatches
     """
     demo_df = get_dataframe(db, models.DemographicData)
     bio_df = get_dataframe(db, models.BiometricData)
-    if demo_df.empty or bio_df.empty: return []
+    if demo_df.empty or bio_df.empty:
+        return {"chart_data": [], "map_data": []}
 
-    merged = pd.merge(demo_df, bio_df, on=['date', 'state', 'district', 'pincode'])
-    
-    # Logic: Ratio mismatch for 5-17 age group
-    suspects = merged[
-        (merged['demo_age_5_17'] > 20) & 
-        (merged['bio_age_5_17'] < 5)
-    ].copy()
-    
-    return suspects[['date', 'district', 'pincode', 'demo_age_5_17', 'bio_age_5_17']].to_dict(orient='records')
+    merged = pd.merge(demo_df, bio_df, on=["date", "state", "district", "pincode"])
 
-# --- 5. THE BOT OPERATOR (Benford's Law / Round Numbers) ---
+    # Group by District
+    district_stats = (
+        merged.groupby("district")[["demo_age_5_17", "bio_age_5_17"]]
+        .sum()
+        .reset_index()
+    )
+
+    # Calculate Mismatch Ratio
+    district_stats["mismatch_ratio"] = district_stats["demo_age_5_17"] / (
+        district_stats["bio_age_5_17"] + 1
+    )
+
+    # 1. Chart Data: Top 10 Mismatched Districts
+    chart_data = (
+        district_stats.sort_values("mismatch_ratio", ascending=False)
+        .head(10)
+        .to_dict(orient="records")
+    )
+
+    # 2. Map Data
+    map_data = []
+
+    return {"chart_data": chart_data, "map_data": map_data}
+
+
+# --- 5. BOT OPERATOR (Benford's Law) ---
 def analyze_bot_operator(db: Session):
     """
-    Checks if enrolment counts are suspiciously 'round' (ending in 0 or 5).
+    Detects Bot Operator (Benfords Law or Round Numbers) anomalies.
+    Identifies pincodes with suspiciously high percentages of round numbers.
+
+    Returns dictionary with:
+    - chart_data: Percentage distribution of round vs non-round enrolments
+    - map_data: Top suspicious pincodes ranked by round number percentage
     """
     df = get_dataframe(db, models.EnrolmentData)
-    if df.empty: return []
+    if df.empty:
+        return {"chart_data": [], "map_data": []}
 
-    # Logic: Calculate % of 'Round Numbers' per Pincode
-    df['is_round'] = df['age_18_greater'].apply(lambda x: 1 if x > 0 and x % 5 == 0 else 0)
-    
-    pincode_stats = df.groupby('pincode').agg(
-        total_days=('date', 'count'),
-        round_count=('is_round', 'sum')
-    ).reset_index()
-    
-    pincode_stats['round_pct'] = (pincode_stats['round_count'] / pincode_stats['total_days']) * 100
-    
-    # Filter: > 80% round numbers is unnatural
-    bots = pincode_stats[
-        (pincode_stats['total_days'] > 5) & 
-        (pincode_stats['round_pct'] > 80)
-    ].sort_values('round_pct', ascending=False)
-    
-    return bots.to_dict(orient='records')
+    df["is_round"] = df["age_18_greater"].apply(
+        lambda x: 1 if x > 0 and x % 5 == 0 else 0
+    )
 
-# --- 6. THE SUNDAY SHIFT (Temporal Anomaly) ---
+    pincode_stats = (
+        df.groupby("pincode")
+        .agg(total_days=("date", "count"), round_count=("is_round", "sum"))
+        .reset_index()
+    )
+
+    pincode_stats["round_pct"] = (
+        pincode_stats["round_count"] / pincode_stats["total_days"]
+    ) * 100
+
+    # 1. Chart Data: Pie Chart Counts
+    suspicious_count = len(pincode_stats[pincode_stats["round_pct"] > 80])
+    natural_count = len(pincode_stats) - suspicious_count
+
+    chart_data = [
+        {"name": "Suspicious (>80% Round)", "value": suspicious_count},
+        {"name": "Natural", "value": natural_count},
+    ]
+
+    # 2. Map Data
+    bots = pincode_stats[pincode_stats["round_pct"] > 80].copy()
+    bots["type"] = "Bot Operator"
+    # We need to merge back state/district info which was lost in groupby
+    # For efficiency, we just take the pincode list
+    map_data = bots[["pincode", "type", "round_pct"]].to_dict(orient="records")
+
+    return {"chart_data": chart_data, "map_data": map_data}
+
+
+# --- 6. SUNDAY SHIFT (Temporal Anomaly) ---
 def analyze_sunday_shift(db: Session):
     """
-    Detects high activity on Sundays (when centers should be closed).
+    Detects Sunday Shift (Temporal Anomaly) anomalies.
+    Identifies high activity on Sundays when enrolment centers should be closed.
+
+    Returns dictionary with:
+    - chart_data: Weekly activity trend showing day-of-week patterns
+    - map_data: Specific pincodes with Sunday anomalies
     """
     df = get_dataframe(db, models.EnrolmentData)
-    if df.empty: return []
+    if df.empty:
+        return {"chart_data": [], "map_data": []}
 
-    # Logic: Filter for Sundays (weekday == 6) and high volume
-    df['date'] = pd.to_datetime(df['date'])
-    df['weekday'] = df['date'].apply(lambda x: x.weekday())
-    
+    df["date"] = pd.to_datetime(df["date"])
+    df["day_of_week"] = df["date"].apply(lambda x: x.strftime("%A"))
+
+    # 1. Chart Data: Avg Enrolment per Day
+    # Sort order: Mon -> Sun
+    days_order = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+    ]
+    daily_stats = (
+        df.groupby("day_of_week")["age_18_greater"]
+        .mean()
+        .reindex(days_order)
+        .reset_index()
+    )
+    chart_data = daily_stats.to_dict(orient="records")
+
+    # 2. Map Data: Specific Sunday Spikes
     sundays = df[
-        (df['weekday'] == 6) & 
-        (df['age_18_greater'] > 10) # Threshold for 'suspicious' Sunday
+        (df["date"].apply(lambda x: x.weekday()) == 6) & (df["age_18_greater"] > 10)
     ].copy()
-    
-    sundays['date'] = sundays['date'].apply(lambda x: x.strftime('%Y-%m-%d'))
-    return sundays.sort_values('age_18_greater', ascending=False).to_dict(orient='records')
+    sundays["type"] = "Sunday Shift"
+    map_data = sundays[
+        ["pincode", "district", "state", "age_18_greater", "type"]
+    ].to_dict(orient="records")
+
+    return {"chart_data": chart_data, "map_data": map_data}
+
+
+# --- AGGREGATE MAP ENDPOINT ---
+def get_all_map_anomalies(db: Session):
+    """Combines map data from all 6 engines for the Main Panel"""
+    # Note: In production, optimize this to avoid re-calculating everything.
+    # For hackathon, calling functions sequentially is acceptable.
+
+    phantom = analyze_phantom_village(db)["map_data"]
+    update_mill = analyze_update_mill(db)["map_data"]
+    bio_bypass = analyze_biometric_bypass(db)["map_data"]
+    sunday = analyze_sunday_shift(db)["map_data"]
+
+    # Add coordinates (MOCKING LAT/LNG based on Pincode for Visualization)
+    # Since real geocoding requires external APIs not allowed or rate-limited.
+    def mock_coords(pincode):
+        # Deterministic pseudo-random lat/lng roughly within India
+
+        random.seed(pincode)  # noqa: F821
+        lat = 20 + (random.random() * 10)  # noqa: F821  # 20-30 Lat
+        lng = 75 + (random.random() * 10)  # noqa: F821  # 75-85 Lng
+        return lat, lng
+
+    all_anomalies = phantom + update_mill + bio_bypass + sunday
+
+    final_data = []
+    for item in all_anomalies:
+        lat, lng = mock_coords(item["pincode"])
+        item["lat"] = lat
+        item["lng"] = lng
+        final_data.append(item)
+
+    return final_data

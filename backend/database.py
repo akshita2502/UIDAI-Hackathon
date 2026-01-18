@@ -1,4 +1,4 @@
-"""Database connection and session management for UIDAI Sentinel - Fraud Detection System"""
+"""Database connection and session management for UIDAI Sentinel"""  # noqa: E501
 
 import os
 from sqlalchemy import create_engine

@@ -1,4 +1,4 @@
-"""Main application file for UIDAI Sentinel - Fraud Detection System"""
+"""Main application entry point for UIDAI Sentinel fraud detection system"""  # noqa: E501
 
 import socketio
 from fastapi import FastAPI
