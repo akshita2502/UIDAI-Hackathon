@@ -1,3 +1,5 @@
+"""Database connection and session management for UIDAI Sentinel - Fraud Detection System"""
+
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -19,7 +21,12 @@ SQLALCHEMY_DATABASE_URL = f"postgresql://{USER}:{PASSWORD}@{HOST}:{PORT}/{DB_NAM
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
 def get_db():
+    """
+    Dependency function for FastAPI to provide database sessions.
+    Yields a new database session and ensures cleanup after request.
+    """
     db = SessionLocal()
     try:
         yield db

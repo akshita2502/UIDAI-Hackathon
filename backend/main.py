@@ -1,3 +1,5 @@
+"""Main application file for UIDAI Sentinel - Fraud Detection System"""
+
 import socketio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +13,10 @@ models.Base.metadata.create_all(bind=engine)
 
 # 2. Initialize FastAPI
 app = FastAPI(title="UIDAI Sentinel - Fraud Detection System")
+"""
+UIDAI Sentinel: Real-time fraud detection system for Aadhaar enrolment anomalies.
+Implements 6 different ML-based anomaly detection algorithms.
+"""
 
 # 3. Setup CORS
 app.add_middleware(
