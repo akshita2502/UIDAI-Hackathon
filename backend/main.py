@@ -1,11 +1,9 @@
 """Main application entry point for UIDAI Sentinel fraud detection system"""  # noqa: E501
 
-import socketio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import models
 from database import engine
-from socket_manager import sio
 from api_routes import router as api_router
 
 # 1. Create DB Tables
@@ -29,9 +27,5 @@ app.add_middleware(
 
 # 4. Mount API Routes
 app.include_router(api_router)
-
-# 5. Mount Socket.IO
-# This wraps the FastAPI app with the SocketIO ASGI app
-app = socketio.ASGIApp(sio, app)
 
 # Run with: uvicorn main:app --reload
