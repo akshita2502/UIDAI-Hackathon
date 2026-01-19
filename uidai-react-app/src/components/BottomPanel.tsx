@@ -18,7 +18,6 @@ import {
   Legend,
 } from "recharts";
 
-// Color Palette matching the map
 const COLORS = {
   phantom: "#EF4444",
   update: "#F59E0B",
@@ -29,7 +28,7 @@ const COLORS = {
 };
 
 const BottomPanel: React.FC = () => {
-  // State for each chart
+  // Independent State
   const [phantomData, setPhantomData] = useState([]);
   const [updateData, setUpdateData] = useState([]);
   const [bioData, setBioData] = useState([]);
@@ -37,8 +36,8 @@ const BottomPanel: React.FC = () => {
   const [botData, setBotData] = useState([]);
   const [sundayData, setSundayData] = useState([]);
 
-  // Loading states for each chart
-  const [loadingStates, setLoadingStates] = useState({
+  // Independent Loading States
+  const [loading, setLoading] = useState({
     phantom: true,
     update: true,
     bio: true,
@@ -47,59 +46,58 @@ const BottomPanel: React.FC = () => {
     sunday: true,
   });
 
-  // Fetch Data on Load
+  // Lazy Load Function: Fires requests independently
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchChart = async (url: string, setData: Function, key: string) => {
       try {
-        const [res1, res2, res3, res4, res5, res6] = await Promise.all([
-          axios.get("http://localhost:8000/analytics/phantom-village"),
-          axios.get("http://localhost:8000/analytics/update-mill"),
-          axios.get("http://localhost:8000/analytics/biometric-bypass"),
-          axios.get("http://localhost:8000/analytics/scholarship-ghost"),
-          axios.get("http://localhost:8000/analytics/bot-operator"),
-          axios.get("http://localhost:8000/analytics/sunday-shift"),
-        ]);
-
-        setPhantomData(res1.data);
-        setUpdateData(res2.data);
-        setBioData(res3.data);
-        setGhostData(res4.data);
-        setBotData(res5.data);
-        setSundayData(res6.data);
-
-        // Mark all as loaded
-        setLoadingStates({
-          phantom: false,
-          update: false,
-          bio: false,
-          ghost: false,
-          bot: false,
-          sunday: false,
-        });
+        const res = await axios.get(url);
+        setData(res.data);
       } catch (err) {
-        console.error("Chart data fetch error", err);
-        // Mark all as not loading on error
-        setLoadingStates({
-          phantom: false,
-          update: false,
-          bio: false,
-          ghost: false,
-          bot: false,
-          sunday: false,
-        });
+        console.error(`Error loading ${key}:`, err);
+      } finally {
+        setLoading((prev) => ({ ...prev, [key]: false }));
       }
     };
-    fetchData();
+
+    // Fire all requests in parallel, do NOT await them together
+    fetchChart(
+      "http://localhost:8000/analytics/phantom-village",
+      setPhantomData,
+      "phantom",
+    );
+    fetchChart(
+      "http://localhost:8000/analytics/update-mill",
+      setUpdateData,
+      "update",
+    );
+    fetchChart(
+      "http://localhost:8000/analytics/biometric-bypass",
+      setBioData,
+      "bio",
+    );
+    fetchChart(
+      "http://localhost:8000/analytics/scholarship-ghost",
+      setGhostData,
+      "ghost",
+    );
+    fetchChart(
+      "http://localhost:8000/analytics/bot-operator",
+      setBotData,
+      "bot",
+    );
+    fetchChart(
+      "http://localhost:8000/analytics/sunday-shift",
+      setSundayData,
+      "sunday",
+    );
   }, []);
 
-  // Common Tooltip Style
   const tooltipStyle = {
     backgroundColor: "#fff",
     border: "1px solid #ccc",
     fontSize: "12px",
   };
 
-  // Loader Component
   const Loader: React.FC = () => (
     <div
       style={{
@@ -121,19 +119,12 @@ const BottomPanel: React.FC = () => {
           animation: "spin 1s linear infinite",
         }}
       />
-      <p style={{ color: "#9ca3af", fontSize: "12px" }}>Loading chart...</p>
     </div>
   );
 
   return (
     <div style={{ height: "100%", overflowY: "auto", paddingRight: "8px" }}>
-      {/* CSS for spinner animation */}
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
-
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       <h3
         style={{
           fontSize: "16px",
@@ -153,7 +144,7 @@ const BottomPanel: React.FC = () => {
           paddingBottom: "20px",
         }}
       >
-        {/* 1. PHANTOM VILLAGE: Stacked Bar (State-wise) */}
+        {/* 1. Phantom Village */}
         <div className="card" style={{ padding: "12px", height: "250px" }}>
           <h4
             style={{
@@ -164,7 +155,7 @@ const BottomPanel: React.FC = () => {
           >
             1. Phantom Village (State Distribution)
           </h4>
-          {loadingStates.phantom ? (
+          {loading.phantom ? (
             <Loader />
           ) : (
             <ResponsiveContainer width="100%" height="90%">
@@ -196,7 +187,7 @@ const BottomPanel: React.FC = () => {
           )}
         </div>
 
-        {/* 2. UPDATE MILL: Bar Chart (Suspicious Z-Scores) */}
+        {/* 2. Update Mill */}
         <div className="card" style={{ padding: "12px", height: "250px" }}>
           <h4
             style={{
@@ -207,7 +198,7 @@ const BottomPanel: React.FC = () => {
           >
             2. Update Mill (Top Suspicious Districts)
           </h4>
-          {loadingStates.update ? (
+          {loading.update ? (
             <Loader />
           ) : (
             <ResponsiveContainer width="100%" height="90%">
@@ -227,14 +218,14 @@ const BottomPanel: React.FC = () => {
           )}
         </div>
 
-        {/* 3. BIOMETRIC BYPASS: Scatter Plot */}
+        {/* 3. Biometric Bypass */}
         <div className="card" style={{ padding: "12px", height: "250px" }}>
           <h4
             style={{ fontSize: "13px", color: COLORS.bio, marginBottom: "8px" }}
           >
             3. Biometric Bypass (Correlation)
           </h4>
-          {loadingStates.bio ? (
+          {loading.bio ? (
             <Loader />
           ) : (
             <ResponsiveContainer width="100%" height="90%">
@@ -267,7 +258,7 @@ const BottomPanel: React.FC = () => {
           )}
         </div>
 
-        {/* 4. SCHOLARSHIP GHOST: Grouped Bar */}
+        {/* 4. Scholarship Ghost */}
         <div className="card" style={{ padding: "12px", height: "250px" }}>
           <h4
             style={{
@@ -278,7 +269,7 @@ const BottomPanel: React.FC = () => {
           >
             4. Scholarship Ghost (Child Mismatch)
           </h4>
-          {loadingStates.ghost ? (
+          {loading.ghost ? (
             <Loader />
           ) : (
             <ResponsiveContainer width="100%" height="90%">
@@ -305,14 +296,14 @@ const BottomPanel: React.FC = () => {
           )}
         </div>
 
-        {/* 5. BOT OPERATOR: Pie Chart */}
+        {/* 5. Bot Operator */}
         <div className="card" style={{ padding: "12px", height: "250px" }}>
           <h4
             style={{ fontSize: "13px", color: COLORS.bot, marginBottom: "8px" }}
           >
             5. Bot Operator (Round Number %)
           </h4>
-          {loadingStates.bot ? (
+          {loading.bot ? (
             <Loader />
           ) : (
             <ResponsiveContainer width="100%" height="90%">
@@ -325,7 +316,7 @@ const BottomPanel: React.FC = () => {
                   fill="#8884d8"
                   dataKey="value"
                   label={({ percent }) =>
-                    `${(percent !== undefined ? (percent * 100).toFixed(0) : 0)}%`
+                    `${percent !== undefined ? (percent * 100).toFixed(0) : 0}%`
                   }
                 >
                   {botData.map((_entry, index) => (
@@ -342,7 +333,7 @@ const BottomPanel: React.FC = () => {
           )}
         </div>
 
-        {/* 6. SUNDAY SHIFT: Line Chart */}
+        {/* 6. Sunday Shift */}
         <div className="card" style={{ padding: "12px", height: "250px" }}>
           <h4
             style={{
@@ -353,7 +344,7 @@ const BottomPanel: React.FC = () => {
           >
             6. Sunday Shift (Weekly Trend)
           </h4>
-          {loadingStates.sunday ? (
+          {loading.sunday ? (
             <Loader />
           ) : (
             <ResponsiveContainer width="100%" height="90%">

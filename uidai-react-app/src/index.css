@@ -1,18 +1,15 @@
 :root {
   /* Light Theme Palette */
-  --bg-color: #F8F9FA;       /* Off-white background */
-  --surface-color: #FFFFFF;  /* White surface for cards/nav */
-  --text-primary: #212529;   /* Deep charcoal text */
-  --text-secondary: #6C757D; /* Muted grey text */
-  --accent-color: #007BFF;   /* Brand Blue */
-  --accent-hover: #0056b3;   /* Darker blue for hover states */
-  --border-color: #DEE2E6;   /* Light grey for borders */
-  --danger-color: #DC3545;   /* Red for threats */
-  --success-color: #28A745;  /* Green for status */
+  --bg-color: #F8F9FA;       
+  --surface-color: #FFFFFF;  
+  --text-primary: #212529;   
+  --text-secondary: #6C757D; 
+  --accent-color: #007BFF;   
+  --accent-hover: #0056b3;   
+  --border-color: #DEE2E6;   
+  --danger-color: #DC3545;   
+  --success-color: #28A745;  
 
-  /* Layout Dimensions */
-  --header-height: 70px;
-  
   /* Typography Scale */
   --font-h1: 32px;
   --font-h2: 24px;
@@ -27,7 +24,7 @@ body {
   background-color: var(--bg-color);
   color: var(--text-primary);
   height: 100vh;
-  overflow: hidden; /* Dashboard fixed layout */
+  overflow: hidden; 
 }
 
 /* Card Utility */
@@ -36,4 +33,6 @@ body {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  /* Ensure cards take full height available in their container if needed */
+  height: 100%;
 }
