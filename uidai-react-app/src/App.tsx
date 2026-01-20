@@ -1,15 +1,18 @@
 import React, { useState } from "react";
 import { Provider } from "react-redux";
 import { store } from "./store/store";
+import AnomalyTypes from "./components/AnomalyTypes";
 import SidePanel from "./components/SidePanel";
 import MainPanel from "./components/MainPanel";
 import BottomPanel from "./components/BottomPanel";
 
 const App: React.FC = () => {
-  const [activePage, setActivePage] = useState("heatmap");
+  const [activePage, setActivePage] = useState("anomaly types");
 
   const renderContent = () => {
     switch (activePage) {
+      case "anomaly types":
+        return <AnomalyTypes />;
       case "heatmap":
         return <MainPanel />;
       case "analytics":
@@ -64,6 +67,7 @@ const App: React.FC = () => {
             justifyContent: "space-between"
           }}>
             <h2 style={{ fontSize: "18px", fontWeight: 600, color: "var(--text-primary)" }}>
+              {activePage === "anomaly types" && "Anomaly Definitions"}
               {activePage === "heatmap" && "Geospatial Anomaly Heatmap"}
               {activePage === "analytics" && "Detailed Anomaly Analytics"}
               {activePage === "statewise" && "State-wise Reports"}

@@ -7,6 +7,7 @@ interface SidePanelProps {
 
 const SidePanel: React.FC<SidePanelProps> = ({ activePage, onNavigate }) => {
   const menuItems = [
+    {id: "anomaly types", label: "Anomaly Types", icon: "⚠️" },
     { id: "heatmap", label: "Aadhar HeatMap", icon: "🗺️" },
     { id: "analytics", label: "Anomaly Analytics", icon: "📊" },
     { id: "statewise", label: "State-wise Analytics", icon: "🇮🇳" },
