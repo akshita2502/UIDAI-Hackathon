@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
 import {
   BarChart,
   Bar,
@@ -8,16 +7,13 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  ScatterChart,
-  Scatter,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
   Legend,
 } from "recharts";
 
+// Color Palette matching the map
 const COLORS = {
   phantom: "#EF4444",
   update: "#F59E0B",
@@ -28,341 +24,433 @@ const COLORS = {
 };
 
 const BottomPanel: React.FC = () => {
-  // Independent State
-  const [phantomData, setPhantomData] = useState([]);
-  const [updateData, setUpdateData] = useState([]);
-  const [bioData, setBioData] = useState([]);
-  const [ghostData, setGhostData] = useState([]);
-  const [botData, setBotData] = useState([]);
-  const [sundayData, setSundayData] = useState([]);
+  // State for each chart
+  const [phantomData, setPhantomData] = useState<any[]>([]);
+  const [updateData, setUpdateData] = useState<any[]>([]);
+  const [bioData, setBioData] = useState<any[]>([]);
+  const [ghostData, setGhostData] = useState<any[]>([]);
+  const [botData, setBotData] = useState<any[]>([]);
+  const [sundayData, setSundayData] = useState<any[]>([]);
 
-  // Independent Loading States
-  const [loading, setLoading] = useState({
-    phantom: true,
-    update: true,
-    bio: true,
-    ghost: true,
-    bot: true,
-    sunday: true,
-  });
-
-  // Lazy Load Function: Fires requests independently
+  // Fetch Data on Load
   useEffect(() => {
-    const fetchChart = async (url: string, setData: Function, key: string) => {
+    const fetchData = async () => {
       try {
-        const res = await axios.get(url);
-        setData(res.data);
+        const [res1, res2, res3, res4, res5, res6] = await Promise.all([
+          fetch("http://localhost:8000/analytics/phantom-village"),
+          fetch("http://localhost:8000/analytics/update-mill"),
+          fetch("http://localhost:8000/analytics/biometric-bypass"),
+          fetch("http://localhost:8000/analytics/scholarship-ghost"),
+          fetch("http://localhost:8000/analytics/bot-operator"),
+          fetch("http://localhost:8000/analytics/sunday-shift"),
+        ]);
+
+        setPhantomData(await res1.json());
+        setUpdateData(await res2.json());
+        setBioData(await res3.json());
+        setGhostData(await res4.json());
+        setBotData(await res5.json());
+        setSundayData(await res6.json());
       } catch (err) {
-        console.error(`Error loading ${key}:`, err);
-      } finally {
-        setLoading((prev) => ({ ...prev, [key]: false }));
+        console.error("Chart data fetch error", err);
       }
     };
-
-    // Fire all requests in parallel, do NOT await them together
-    fetchChart(
-      "http://localhost:8000/analytics/phantom-village",
-      setPhantomData,
-      "phantom",
-    );
-    fetchChart(
-      "http://localhost:8000/analytics/update-mill",
-      setUpdateData,
-      "update",
-    );
-    fetchChart(
-      "http://localhost:8000/analytics/biometric-bypass",
-      setBioData,
-      "bio",
-    );
-    fetchChart(
-      "http://localhost:8000/analytics/scholarship-ghost",
-      setGhostData,
-      "ghost",
-    );
-    fetchChart(
-      "http://localhost:8000/analytics/bot-operator",
-      setBotData,
-      "bot",
-    );
-    fetchChart(
-      "http://localhost:8000/analytics/sunday-shift",
-      setSundayData,
-      "sunday",
-    );
+    fetchData();
   }, []);
 
+  // Common Tooltip Style
   const tooltipStyle = {
     backgroundColor: "#fff",
     border: "1px solid #ccc",
     fontSize: "12px",
   };
 
-  const Loader: React.FC = () => (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        alignItems: "center",
-        height: "100%",
-        gap: "12px",
-      }}
-    >
-      <div
-        style={{
-          width: "30px",
-          height: "30px",
-          border: "3px solid #e5e7eb",
-          borderTop: "3px solid #3b82f6",
-          borderRadius: "50%",
-          animation: "spin 1s linear infinite",
-        }}
-      />
-    </div>
-  );
+  // Chart Title Style
+  const chartTitleStyle = {
+    fontSize: "14px",
+    fontWeight: 700,
+    marginBottom: "16px",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  };
 
   return (
     <div style={{ height: "100%", overflowY: "auto", paddingRight: "8px" }}>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      <h3
-        style={{
-          fontSize: "16px",
-          marginBottom: "12px",
-          color: "#495057",
-          fontWeight: 700,
-        }}
-      >
-        Detailed Anomaly Analytics
-      </h3>
-
+      {/* Container: Flex Column for Full Width Stacking */}
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: "16px",
-          paddingBottom: "20px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "24px",
+          paddingBottom: "32px",
         }}
       >
-        {/* 1. Phantom Village */}
-        <div className="card" style={{ padding: "12px", height: "250px" }}>
-          <h4
-            style={{
-              fontSize: "13px",
-              color: COLORS.phantom,
-              marginBottom: "8px",
-            }}
+        {/* 1. PHANTOM VILLAGE: Stacked Bar (State-wise) WITH SCROLL */}
+        <div
+          className="card"
+          style={{
+            padding: "20px",
+            height: "420px",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <div
+            style={{ ...chartTitleStyle, color: COLORS.phantom, flexShrink: 0 }}
           >
+            <span
+              style={{
+                width: "10px",
+                height: "10px",
+                backgroundColor: COLORS.phantom,
+                borderRadius: "50%",
+              }}
+            ></span>
             1. Phantom Village (State Distribution)
-          </h4>
-          {loading.phantom ? (
-            <Loader />
-          ) : (
-            <ResponsiveContainer width="100%" height="90%">
-              <BarChart data={phantomData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="state"
-                  fontSize={10}
-                  angle={-25}
-                  textAnchor="end"
-                  height={40}
-                />
-                <YAxis fontSize={10} />
-                <Tooltip contentStyle={tooltipStyle} />
-                <Bar
-                  dataKey="normal_count"
-                  stackId="a"
-                  fill="#E5E7EB"
-                  name="Normal"
-                />
-                <Bar
-                  dataKey="anomaly_count"
-                  stackId="a"
-                  fill={COLORS.phantom}
-                  name="Anomalies"
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+          </div>
 
-        {/* 2. Update Mill */}
-        <div className="card" style={{ padding: "12px", height: "250px" }}>
-          <h4
+          <div
             style={{
-              fontSize: "13px",
-              color: COLORS.update,
-              marginBottom: "8px",
+              flex: 1,
+              overflowX: "auto",
+              overflowY: "hidden",
+              border: "1px solid #f0f0f0",
+              borderRadius: "4px",
             }}
           >
-            2. Update Mill (Top Suspicious Districts)
-          </h4>
-          {loading.update ? (
-            <Loader />
-          ) : (
-            <ResponsiveContainer width="100%" height="90%">
-              <BarChart data={updateData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" fontSize={10} />
-                <YAxis
-                  dataKey="district"
-                  type="category"
-                  width={80}
-                  fontSize={9}
-                />
-                <Tooltip contentStyle={tooltipStyle} />
-                <Bar dataKey="z_score" fill={COLORS.update} name="Z-Score" />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        {/* 3. Biometric Bypass */}
-        <div className="card" style={{ padding: "12px", height: "250px" }}>
-          <h4
-            style={{ fontSize: "13px", color: COLORS.bio, marginBottom: "8px" }}
-          >
-            3. Biometric Bypass (Correlation)
-          </h4>
-          {loading.bio ? (
-            <Loader />
-          ) : (
-            <ResponsiveContainer width="100%" height="90%">
-              <ScatterChart>
-                <CartesianGrid />
-                <XAxis
-                  type="number"
-                  dataKey="demo_age_17_"
-                  name="Demo Updates"
-                  fontSize={10}
-                />
-                <YAxis
-                  type="number"
-                  dataKey="bio_age_17_"
-                  name="Bio Updates"
-                  fontSize={10}
-                />
-                <Tooltip
-                  cursor={{ strokeDasharray: "3 3" }}
-                  contentStyle={tooltipStyle}
-                />
-                <Scatter
-                  name="Centers"
-                  data={bioData}
-                  fill={COLORS.bio}
-                  shape="circle"
-                />
-              </ScatterChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        {/* 4. Scholarship Ghost */}
-        <div className="card" style={{ padding: "12px", height: "250px" }}>
-          <h4
-            style={{
-              fontSize: "13px",
-              color: COLORS.ghost,
-              marginBottom: "8px",
-            }}
-          >
-            4. Scholarship Ghost (Child Mismatch)
-          </h4>
-          {loading.ghost ? (
-            <Loader />
-          ) : (
-            <ResponsiveContainer width="100%" height="90%">
-              <BarChart data={ghostData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="district"
-                  fontSize={9}
-                  interval={0}
-                  angle={-25}
-                  textAnchor="end"
-                  height={40}
-                />
-                <YAxis fontSize={10} />
-                <Tooltip contentStyle={tooltipStyle} />
-                <Bar
-                  dataKey="demo_age_5_17"
-                  fill={COLORS.ghost}
-                  name="Demographic"
-                />
-                <Bar dataKey="bio_age_5_17" fill="#93C5FD" name="Biometric" />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        {/* 5. Bot Operator */}
-        <div className="card" style={{ padding: "12px", height: "250px" }}>
-          <h4
-            style={{ fontSize: "13px", color: COLORS.bot, marginBottom: "8px" }}
-          >
-            5. Bot Operator (Round Number %)
-          </h4>
-          {loading.bot ? (
-            <Loader />
-          ) : (
-            <ResponsiveContainer width="100%" height="90%">
-              <PieChart>
-                <Pie
-                  data={botData}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={60}
-                  fill="#8884d8"
-                  dataKey="value"
-                  label={({ percent }) =>
-                    `${percent !== undefined ? (percent * 100).toFixed(0) : 0}%`
-                  }
+            {/* dynamic width ensuring ~60px per state for readability */}
+            <div
+              style={{
+                width: `${Math.max(100, phantomData.length * 60)}px`,
+                height: "100%",
+                minWidth: "100%",
+              }}
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={phantomData}
+                  margin={{ top: 10, right: 30, left: 20, bottom: 60 }}
                 >
-                  {botData.map((_entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={index === 0 ? COLORS.bot : "#E5E7EB"}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={tooltipStyle} />
-                <Legend verticalAlign="bottom" height={36} />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        {/* 6. Sunday Shift */}
-        <div className="card" style={{ padding: "12px", height: "250px" }}>
-          <h4
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="state"
+                    fontSize={11}
+                    interval={0}
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                    tickFormatter={(val) =>
+                      val.length > 15 ? `${val.substring(0, 15)}...` : val
+                    }
+                  />
+                  <YAxis fontSize={11} />
+                  {/* FIX: cursor={{ fill: 'transparent' }} removes the grey background */}
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    cursor={{ fill: "transparent" }}
+                  />
+                  <Legend verticalAlign="top" height={36} />
+                  <Bar
+                    dataKey="normal_count"
+                    stackId="a"
+                    fill="#a7aaae"
+                    name="Normal Enrolments"
+                    barSize={30}
+                  />
+                  <Bar
+                    dataKey="anomaly_count"
+                    stackId="a"
+                    fill={COLORS.phantom}
+                    name="Anomalies"
+                    barSize={30}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div
             style={{
-              fontSize: "13px",
-              color: COLORS.sunday,
-              marginBottom: "8px",
+              fontSize: "10px",
+              color: "#999",
+              textAlign: "center",
+              marginTop: "4px",
             }}
           >
-            6. Sunday Shift (Weekly Trend)
-          </h4>
-          {loading.sunday ? (
-            <Loader />
-          ) : (
-            <ResponsiveContainer width="100%" height="90%">
-              <LineChart data={sundayData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="day_of_week" fontSize={10} />
-                <YAxis fontSize={10} />
-                <Tooltip contentStyle={tooltipStyle} />
-                <Line
-                  type="monotone"
-                  dataKey="age_18_greater"
-                  stroke={COLORS.sunday}
-                  strokeWidth={2}
-                  name="Avg Adult Enrolment"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
+            Scroll horizontally to view all states →
+          </div>
+        </div>
+
+        {/* 2. UPDATE MILL: Bar Chart (Suspicious Z-Scores) */}
+        <div className="card" style={{ padding: "20px", height: "350px" }}>
+          <div style={{ ...chartTitleStyle, color: COLORS.update }}>
+            <span
+              style={{
+                width: "10px",
+                height: "10px",
+                backgroundColor: COLORS.update,
+                borderRadius: "50%",
+              }}
+            ></span>
+            2. Update Mill (Top Suspicious Districts)
+          </div>
+          <ResponsiveContainer width="100%" height="90%">
+            <BarChart
+              data={updateData}
+              layout="vertical"
+              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis type="number" fontSize={11} />
+              <YAxis
+                dataKey="district"
+                type="category"
+                width={120}
+                fontSize={11}
+              />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                cursor={{ fill: "transparent" }}
+              />
+              <Legend verticalAlign="top" height={36} />
+              <Bar
+                dataKey="z_score"
+                fill={COLORS.update}
+                name="Z-Score (Deviation)"
+                barSize={20}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* 3. BIOMETRIC BYPASS: Grouped Bar Chart (State-wise) */}
+        <div className="card" style={{ padding: "20px", height: "350px" }}>
+          <div style={{ ...chartTitleStyle, color: COLORS.bio }}>
+            <span
+              style={{
+                width: "10px",
+                height: "10px",
+                backgroundColor: COLORS.bio,
+                borderRadius: "50%",
+              }}
+            ></span>
+            3. Biometric Bypass (State-wise Verification Gap)
+          </div>
+          <ResponsiveContainer width="100%" height="90%">
+            <BarChart
+              data={bioData}
+              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="state"
+                fontSize={11}
+                interval={0}
+                angle={-15}
+                textAnchor="end"
+                height={60}
+                tickFormatter={(val) =>
+                  val.length > 10 ? `${val.substring(0, 10)}..` : val
+                }
+              />
+              <YAxis fontSize={11} />
+              <Tooltip
+                cursor={{ fill: "transparent" }}
+                contentStyle={{
+                  backgroundColor: "#fff",
+                  border: "1px solid #ccc",
+                  fontSize: "12px",
+                }}
+              />
+              <Legend verticalAlign="top" height={36} />
+
+              {/* Bar 1: Demographic Updates (The Risk) */}
+              <Bar
+                dataKey="demo_age_17_"
+                name="Demographic Updates"
+                fill={COLORS.bio}
+                barSize={20}
+                radius={[4, 4, 0, 0]}
+              />
+
+              {/* Bar 2: Biometric Updates (The Verification) */}
+              <Bar
+                dataKey="bio_age_17_"
+                name="Biometric Updates"
+                fill="#C4B5FD" /* Lighter purple for contrast */
+                barSize={20}
+                radius={[4, 4, 0, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* 4. SCHOLARSHIP GHOST: Grouped Bar */}
+        <div className="card" style={{ padding: "20px", height: "350px" }}>
+          <div style={{ ...chartTitleStyle, color: COLORS.ghost }}>
+            <span
+              style={{
+                width: "10px",
+                height: "10px",
+                backgroundColor: COLORS.ghost,
+                borderRadius: "50%",
+              }}
+            ></span>
+            4. Scholarship Ghost (Child Mismatch)
+          </div>
+          <ResponsiveContainer width="100%" height="90%">
+            <BarChart
+              data={ghostData}
+              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="district"
+                fontSize={11}
+                interval={0}
+                angle={-15}
+                textAnchor="end"
+                height={60}
+              />
+              <YAxis fontSize={11} />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                cursor={{ fill: "transparent" }}
+              />
+              <Legend verticalAlign="top" height={36} />
+              <Bar
+                dataKey="demo_age_5_17"
+                fill={COLORS.ghost}
+                name="Demographic Updates (Child)"
+              />
+              <Bar
+                dataKey="bio_age_5_17"
+                fill="#93C5FD"
+                name="Biometric Updates (Child)"
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* 5. BOT OPERATOR: Pie Chart */}
+        <div className="card" style={{ padding: "20px", height: "350px" }}>
+          <div style={{ ...chartTitleStyle, color: COLORS.bot }}>
+            <span
+              style={{
+                width: "10px",
+                height: "10px",
+                backgroundColor: COLORS.bot,
+                borderRadius: "50%",
+              }}
+            ></span>
+            5. Bot Operator (Round Number Analysis)
+          </div>
+          <ResponsiveContainer width="100%" height="90%">
+            <PieChart>
+              <Pie
+                data={botData}
+                cx="50%"
+                cy="50%"
+                outerRadius={100}
+                fill="#8884d8"
+                dataKey="value"
+                label={({ name, percent }) =>
+                  `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`
+                }
+              >
+                {botData.map((_, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={index === 0 ? COLORS.bot : "#E5E7EB"}
+                  />
+                ))}
+              </Pie>
+              <Tooltip contentStyle={tooltipStyle} />
+              <Legend verticalAlign="bottom" height={36} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* 6. SUNDAY/HOLIDAY SHIFT: Daily Volume Bar Chart */}
+        <div className="card" style={{ padding: "20px", height: "350px" }}>
+          <div style={{ ...chartTitleStyle, color: COLORS.sunday }}>
+            <span
+              style={{
+                width: "10px",
+                height: "10px",
+                backgroundColor: COLORS.sunday,
+                borderRadius: "50%",
+              }}
+            ></span>
+            6. Temporal Shift (Sundays & National Holidays)
+          </div>
+          <ResponsiveContainer width="100%" height="90%">
+            <BarChart
+              data={sundayData}
+              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis
+                dataKey="date_str"
+                fontSize={10}
+                tickFormatter={(val) => val.substring(5)} // Show MM-DD
+                minTickGap={30}
+              />
+              <YAxis fontSize={11} />
+              <Tooltip
+                cursor={{ fill: "transparent" }}
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    return (
+                      <div style={{ ...tooltipStyle, padding: "8px" }}>
+                        <p style={{ fontWeight: 700, margin: "0 0 4px 0" }}>
+                          {data.date_str}
+                        </p>
+                        <p style={{ margin: 0 }}>
+                          Volume: <strong>{data.age_18_greater}</strong>
+                        </p>
+                        <p
+                          style={{
+                            margin: "4px 0 0 0",
+                            color:
+                              data.day_type === "Weekday"
+                                ? "#6B7280"
+                                : "#EF4444",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Type: {data.label}
+                        </p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Legend
+                verticalAlign="top"
+                height={36}
+                payload={[
+                  { value: "Normal Weekday", type: "rect", color: "#E5E7EB" },
+                  {
+                    value: "Sunday Anomaly",
+                    type: "rect",
+                    color: COLORS.sunday,
+                  },
+                  { value: "Holiday Anomaly", type: "rect", color: "#EF4444" },
+                ]}
+              />
+              <Bar dataKey="age_18_greater" name="Daily Volume">
+                {sundayData.map((entry: any, index: number) => {
+                  let color = "#E5E7EB"; // Default Weekday (Grey)
+                  if (entry.day_type === "Sunday") color = COLORS.sunday; // Pink
+                  if (entry.day_type === "Holiday") color = "#EF4444"; // Red
+                  return <Cell key={`cell-${index}`} fill={color} />;
+                })}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>

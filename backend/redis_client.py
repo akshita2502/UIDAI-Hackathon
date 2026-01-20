@@ -39,8 +39,8 @@ def get_cached_data(key: str):
         return None
 
 
-def set_cached_data(key: str, data: dict, expire_seconds: int = 3600):
-    """Store dictionary as JSON in Redis with expiration (Default: 1 hour)"""
+def set_cached_data(key: str, data: dict, expire_seconds: int = 604800):
+    """Store dictionary as JSON in Redis with expiration (Default: 1 week)"""
     if REDIS_CLIENT:
         try:
             REDIS_CLIENT.setex(key, expire_seconds, json.dumps(data))
