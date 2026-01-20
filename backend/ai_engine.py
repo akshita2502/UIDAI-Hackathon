@@ -135,6 +135,23 @@ STATE_COORDS = {
     "Delhi": [28.7041, 77.1025],
 }
 
+# 3. NATIONAL HOLIDAYS 2025
+HOLIDAYS_2025 = {
+    "2025-01-26": "Republic Day",
+    "2025-03-14": "Holi",
+    "2025-03-31": "Id-ul-Fitr",  # Estimated
+    "2025-04-10": "Mahavir Jayanti",
+    "2025-04-18": "Good Friday",
+    "2025-05-12": "Buddha Purnima",
+    "2025-06-07": "Id-ul-Zuha",  # Estimated
+    "2025-08-15": "Independence Day",
+    "2025-08-16": "Janmashtami",
+    "2025-10-02": "Gandhi Jayanti",
+    "2025-10-20": "Diwali",
+    "2025-11-05": "Guru Nanak Jayanti",
+    "2025-12-25": "Christmas",
+}
+
 
 def get_coords(state, district, pincode):
     """
@@ -392,44 +409,41 @@ def analyze_bot_operator(db: Session):
     return {"chart_data": chart_data, "map_data": map_data}
 
 
-# --- 6. SUNDAY SHIFT (Temporal Anomaly) ---
+# --- 6. SUNDAY/HOLIDAY SHIFT (UPDATED) ---
 def analyze_sunday_shift(db: Session):
-    """Detects Sunday Shift (Temporal Anomaly)."""
+    """Detects Sunday/Holiday Shift anomalies."""
     df = get_dataframe(db, models.EnrolmentData)
     if df.empty:
         return {"chart_data": [], "map_data": []}
 
-    df["date"] = pd.to_datetime(df["date"])
-    df["day_of_week"] = df["date"].apply(lambda x: x.strftime("%A"))
+    df["date"] = pd.to_datetime(df["date"], dayfirst=True)
+    daily_stats = df.groupby("date")["age_18_greater"].sum().reset_index()
 
-    # Chart Data
-    days_order = [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday",
-    ]
-    daily_stats = (
-        df.groupby("day_of_week")["age_18_greater"]
-        .mean()
-        .reindex(days_order)
-        .reset_index()
+    def get_day_type(row):
+        date_str = row["date"].strftime("%Y-%m-%d")
+        if date_str in HOLIDAYS_2025:
+            return "Holiday", HOLIDAYS_2025[date_str]
+        elif row["date"].weekday() == 6:
+            return "Sunday", "Sunday"
+        else:
+            return "Weekday", "Normal"
+
+    daily_stats[["day_type", "label"]] = daily_stats.apply(
+        lambda x: pd.Series(get_day_type(x)), axis=1
     )
-    chart_data = daily_stats.to_dict(orient="records")
+    daily_stats["date_str"] = daily_stats["date"].dt.strftime("%Y-%m-%d")
+    chart_data = daily_stats.sort_values("date")
 
-    # Map Data - RELAXED THRESHOLD: > 5 (was 10)
-    sundays = df[
-        (df["date"].apply(lambda x: x.weekday()) == 6) & (df["age_18_greater"] > 5)
-    ].copy()
-    sundays["type"] = "Sunday Shift"
-    map_data = sundays[
+    anomaly_dates = daily_stats[daily_stats["day_type"].isin(["Sunday", "Holiday"])][
+        "date"
+    ]
+    suspects = df[(df["date"].isin(anomaly_dates)) & (df["age_18_greater"] > 0)].copy()
+    suspects["type"] = "Sunday/Holiday Shift"
+
+    map_data = suspects[
         ["pincode", "district", "state", "age_18_greater", "type"]
     ].to_dict(orient="records")
-
-    return {"chart_data": chart_data, "map_data": map_data}
+    return {"chart_data": chart_data.to_dict(orient="records"), "map_data": map_data}
 
 
 # --- AGGREGATE MAP ENDPOINT ---
