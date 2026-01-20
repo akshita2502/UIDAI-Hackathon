@@ -10,7 +10,6 @@ const SidePanel: React.FC<SidePanelProps> = ({ activePage, onNavigate }) => {
     {id: "anomaly types", label: "Anomaly Types", icon: "⚠️" },
     { id: "heatmap", label: "Aadhar HeatMap", icon: "🗺️" },
     { id: "analytics", label: "Anomaly Analytics", icon: "📊" },
-    { id: "statewise", label: "State-wise Analytics", icon: "🇮🇳" },
   ];
 
   return (
@@ -28,10 +27,10 @@ const SidePanel: React.FC<SidePanelProps> = ({ activePage, onNavigate }) => {
       {/* Logo Area */}
       <div style={{ padding: "24px", borderBottom: "1px solid var(--border-color)" }}>
         <h1 style={{ fontSize: "20px", color: "var(--accent-color)", margin: 0, fontWeight: 800 }}>
-          UIDAI SENTINEL
+          AADHAR SENTINEL
         </h1>
         <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px" }}>
-          Fraud Detection System
+          Anomaly and Fraud Detection Dashboard
         </div>
       </div>
 

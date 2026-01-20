@@ -70,7 +70,6 @@ const App: React.FC = () => {
               {activePage === "anomaly types" && "Anomaly Definitions"}
               {activePage === "heatmap" && "Geospatial Anomaly Heatmap"}
               {activePage === "analytics" && "Detailed Anomaly Analytics"}
-              {activePage === "statewise" && "State-wise Reports"}
             </h2>
           </header>
 

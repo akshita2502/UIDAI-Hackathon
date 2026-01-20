@@ -7,8 +7,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
@@ -373,7 +371,7 @@ const BottomPanel: React.FC = () => {
           </ResponsiveContainer>
         </div>
 
-        {/* 6. SUNDAY SHIFT: Line Chart */}
+        {/* 6. SUNDAY/HOLIDAY SHIFT: Daily Volume Bar Chart */}
         <div className="card" style={{ padding: "20px", height: "350px" }}>
           <div style={{ ...chartTitleStyle, color: COLORS.sunday }}>
             <span
@@ -384,27 +382,74 @@ const BottomPanel: React.FC = () => {
                 borderRadius: "50%",
               }}
             ></span>
-            6. Sunday Shift (Weekly Trend)
+            6. Temporal Shift (Sundays & National Holidays)
           </div>
           <ResponsiveContainer width="100%" height="90%">
-            <LineChart
+            <BarChart
               data={sundayData}
               margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
             >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day_of_week" fontSize={11} />
-              <YAxis fontSize={11} />
-              <Tooltip contentStyle={tooltipStyle} />
-              <Legend verticalAlign="top" height={36} />
-              <Line
-                type="monotone"
-                dataKey="age_18_greater"
-                stroke={COLORS.sunday}
-                strokeWidth={3}
-                activeDot={{ r: 8 }}
-                name="Avg Adult Enrolment Volume"
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis
+                dataKey="date_str"
+                fontSize={10}
+                tickFormatter={(val) => val.substring(5)} // Show MM-DD
+                minTickGap={30}
               />
-            </LineChart>
+              <YAxis fontSize={11} />
+              <Tooltip
+                cursor={{ fill: "transparent" }}
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    return (
+                      <div style={{ ...tooltipStyle, padding: "8px" }}>
+                        <p style={{ fontWeight: 700, margin: "0 0 4px 0" }}>
+                          {data.date_str}
+                        </p>
+                        <p style={{ margin: 0 }}>
+                          Volume: <strong>{data.age_18_greater}</strong>
+                        </p>
+                        <p
+                          style={{
+                            margin: "4px 0 0 0",
+                            color:
+                              data.day_type === "Weekday"
+                                ? "#6B7280"
+                                : "#EF4444",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Type: {data.label}
+                        </p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Legend
+                verticalAlign="top"
+                height={36}
+                payload={[
+                  { value: "Normal Weekday", type: "rect", color: "#E5E7EB" },
+                  {
+                    value: "Sunday Anomaly",
+                    type: "rect",
+                    color: COLORS.sunday,
+                  },
+                  { value: "Holiday Anomaly", type: "rect", color: "#EF4444" },
+                ]}
+              />
+              <Bar dataKey="age_18_greater" name="Daily Volume">
+                {sundayData.map((entry: any, index: number) => {
+                  let color = "#E5E7EB"; // Default Weekday (Grey)
+                  if (entry.day_type === "Sunday") color = COLORS.sunday; // Pink
+                  if (entry.day_type === "Holiday") color = "#EF4444"; // Red
+                  return <Cell key={`cell-${index}`} fill={color} />;
+                })}
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
