@@ -268,7 +268,10 @@ def analyze_update_mill(db: Session):
 
 # --- 3. BIOMETRIC BYPASS (Incomplete Verification) ---
 def analyze_biometric_bypass(db: Session):
-    """Detects Biometric Bypass (Incomplete Verification)."""
+    """
+    Detects Biometric Bypass.
+    UPDATED: Returns State-wise comparison for Grouped Bar Chart.
+    """
     demo_df = get_dataframe(db, models.DemographicData)
     bio_df = get_dataframe(db, models.BiometricData)
     if demo_df.empty or bio_df.empty:
@@ -276,20 +279,27 @@ def analyze_biometric_bypass(db: Session):
 
     merged = pd.merge(demo_df, bio_df, on=["date", "state", "district", "pincode"])
 
-    # Risk Score
-    merged["risk_score"] = merged["demo_age_17_"] / (merged["bio_age_17_"] + 1)
-
-    # Chart Data
-    chart_data = (
-        merged[["demo_age_17_", "bio_age_17_", "risk_score"]]
-        .sample(min(200, len(merged)))
-        .to_dict(orient="records")
+    # --- CHART DATA: Aggregated by State ---
+    # 1. Group by State and Sum the volumes
+    state_stats = (
+        merged.groupby("state")[["demo_age_17_", "bio_age_17_"]].sum().reset_index()
     )
 
-    # Map Data - RELAXED THRESHOLD: Risk > 1.5 (was 5)
-    # This means Demographic updates are just 1.5x of Biometric updates
+    # 2. Calculate Risk Ratio (Demo / Bio) to sort by "Most Suspicious"
+    state_stats["risk_ratio"] = state_stats["demo_age_17_"] / (
+        state_stats["bio_age_17_"] + 1
+    )
+
+    # 3. Sort by Risk Ratio descending (Show top offenders first)
+    top_risky_states = state_stats.sort_values("risk_ratio", ascending=False).head(15)
+
+    chart_data = top_risky_states.to_dict(orient="records")
+
+    # --- MAP DATA (Unchanged logic, just ensure columns exist) ---
+    merged["risk_score"] = merged["demo_age_17_"] / (merged["bio_age_17_"] + 1)
     high_risk = merged[merged["risk_score"] > 1.5].copy()
     high_risk["type"] = "Biometric Bypass"
+
     map_data = high_risk[
         ["pincode", "district", "state", "risk_score", "type"]
     ].to_dict(orient="records")

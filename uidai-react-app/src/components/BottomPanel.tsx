@@ -7,8 +7,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  ScatterChart,
-  Scatter,
   LineChart,
   Line,
   PieChart,
@@ -227,7 +225,7 @@ const BottomPanel: React.FC = () => {
           </ResponsiveContainer>
         </div>
 
-        {/* 3. BIOMETRIC BYPASS: Scatter Plot */}
+        {/* 3. BIOMETRIC BYPASS: Grouped Bar Chart (State-wise) */}
         <div className="card" style={{ padding: "20px", height: "350px" }}>
           <div style={{ ...chartTitleStyle, color: COLORS.bio }}>
             <span
@@ -238,45 +236,54 @@ const BottomPanel: React.FC = () => {
                 borderRadius: "50%",
               }}
             ></span>
-            3. Biometric Bypass (Correlation Risk)
+            3. Biometric Bypass (State-wise Verification Gap)
           </div>
           <ResponsiveContainer width="100%" height="90%">
-            <ScatterChart margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <BarChart
+              data={bioData}
+              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+            >
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
-                type="number"
-                dataKey="demo_age_17_"
-                name="Demo Updates"
+                dataKey="state"
                 fontSize={11}
-                label={{
-                  value: "Demographic Updates",
-                  position: "insideBottom",
-                  offset: -5,
-                }}
+                interval={0}
+                angle={-15}
+                textAnchor="end"
+                height={60}
+                tickFormatter={(val) =>
+                  val.length > 10 ? `${val.substring(0, 10)}..` : val
+                }
               />
-              <YAxis
-                type="number"
-                dataKey="bio_age_17_"
-                name="Bio Updates"
-                fontSize={11}
-                label={{
-                  value: "Biometric Updates",
-                  angle: -90,
-                  position: "insideLeft",
-                }}
-              />
+              <YAxis fontSize={11} />
               <Tooltip
-                cursor={{ strokeDasharray: "3 3" }}
-                contentStyle={tooltipStyle}
+                cursor={{ fill: "transparent" }}
+                contentStyle={{
+                  backgroundColor: "#fff",
+                  border: "1px solid #ccc",
+                  fontSize: "12px",
+                }}
               />
               <Legend verticalAlign="top" height={36} />
-              <Scatter
-                name="Centers (Risk > 1.5)"
-                data={bioData}
+
+              {/* Bar 1: Demographic Updates (The Risk) */}
+              <Bar
+                dataKey="demo_age_17_"
+                name="Demographic Updates"
                 fill={COLORS.bio}
-                shape="circle"
+                barSize={20}
+                radius={[4, 4, 0, 0]}
               />
-            </ScatterChart>
+
+              {/* Bar 2: Biometric Updates (The Verification) */}
+              <Bar
+                dataKey="bio_age_17_"
+                name="Biometric Updates"
+                fill="#C4B5FD" /* Lighter purple for contrast */
+                barSize={20}
+                radius={[4, 4, 0, 0]}
+              />
+            </BarChart>
           </ResponsiveContainer>
         </div>
 
