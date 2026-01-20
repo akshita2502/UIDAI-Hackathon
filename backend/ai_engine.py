@@ -1,13 +1,65 @@
 """AI engine module for UIDAI Sentinel fraud detection algorithms"""
 
+from concurrent.futures import ThreadPoolExecutor
 import random
 import numpy as np
 import pandas as pd
-from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy.orm import Session
 from sklearn.ensemble import IsolationForest
 import models
 
+# --- STATE NORMALIZATION MAPPING ---
+# Maps various state name variations to a standardized format
+STATE_NORMALIZATION = {
+    # Variations -> Standard Name
+    "andaman & nicobar islands": "Andaman and Nicobar Islands",
+    "andhra pradesh": "Andhra Pradesh",
+    "arunachal pradesh": "Arunachal Pradesh",
+    "assam": "Assam",
+    "bihar": "Bihar",
+    "chandigarh": "Chandigarh",
+    "chhattisgarh": "Chhattisgarh",
+    # Merging Daman, Diu, Dadra, Nagar Haveli
+    "dadra & nagar haveli": "Dadra and Nagar Haveli and Daman and Diu",
+    "dadra and nagar haveli": "Dadra and Nagar Haveli and Daman and Diu",
+    "daman & diu": "Dadra and Nagar Haveli and Daman and Diu",
+    "daman and diu": "Dadra and Nagar Haveli and Daman and Diu",
+    "the dadra and nagar haveli and daman and diu": "Dadra and Nagar Haveli and Daman and Diu",
+    "dadra and nagar haveli and daman and diu": "Dadra and Nagar Haveli and Daman and Diu",
+    "delhi": "Delhi",
+    "goa": "Goa",
+    "gujarat": "Gujarat",
+    "haryana": "Haryana",
+    "himachal pradesh": "Himachal Pradesh",
+    "jammu & kashmir": "Jammu and Kashmir",
+    "jammu and kashmir": "Jammu and Kashmir",
+    "jharkhand": "Jharkhand",
+    "karnataka": "Karnataka",
+    "kerala": "Kerala",
+    "ladakh": "Ladakh",
+    "lakshadweep": "Lakshadweep",
+    "madhya pradesh": "Madhya Pradesh",
+    "maharashtra": "Maharashtra",
+    "manipur": "Manipur",
+    "meghalaya": "Meghalaya",
+    "mizoram": "Mizoram",
+    "nagaland": "Nagaland",
+    "odisha": "Odisha",
+    "orissa": "Odisha",
+    "puducherry": "Puducherry",
+    "pondicherry": "Puducherry",
+    "punjab": "Punjab",
+    "rajasthan": "Rajasthan",
+    "sikkim": "Sikkim",
+    "tamil nadu": "Tamil Nadu",
+    "telangana": "Telangana",
+    "tripura": "Tripura",
+    "uttar pradesh": "Uttar Pradesh",
+    "uttarakhand": "Uttarakhand",
+    "west bengal": "West Bengal",
+    "westbengal": "West Bengal",
+    "west bangal": "West Bengal",
+}
 # --- GEOSPATIAL CONFIGURATION ---
 
 # 1. PRECISE DISTRICT COORDINATES (Prioritize these for accuracy)
@@ -127,17 +179,34 @@ def get_dataframe(db: Session, model_class):
 
 # --- 1. PHANTOM VILLAGE (Fake ID Ring) ---
 def analyze_phantom_village(db: Session):
-    """Detects Phantom Village (Fake ID Ring) anomalies using Isolation Forest."""
+    """
+    Detects Phantom Village anomalies and Returns CLEANED State-wise data.
+    """
     df = get_dataframe(db, models.EnrolmentData)
     if df.empty:
         return {"chart_data": [], "map_data": []}
 
-    # Isolation Forest (Top 1% are anomalies)
+    # 1. Isolation Forest Logic
     model = IsolationForest(contamination=0.01, random_state=42)
     df["anomaly"] = model.fit_predict(df[["age_18_greater"]].fillna(0))
 
-    # 1. Chart Data
-    state_stats = df.groupby(["state", "anomaly"]).size().unstack(fill_value=0)
+    # 2. Data Cleaning & Normalization
+    # Convert state column to string, strip whitespace, and lower case for matching
+    df["state_clean"] = df["state"].astype(str).str.strip().str.lower()
+
+    # Map to standard names using the dictionary
+    df["normalized_state"] = df["state_clean"].map(STATE_NORMALIZATION)
+
+    # Fill unknown/numeric states (like "10000") with "Others" or drop them
+    # For this chart, we usually drop "Others" to keep it to 28+8
+    df = df.dropna(subset=["normalized_state"])
+
+    # 3. Aggregation on NORMALIZED State
+    state_stats = (
+        df.groupby(["normalized_state", "anomaly"]).size().unstack(fill_value=0)
+    )
+
+    # Rename columns: -1 is Anomaly, 1 is Normal
     if -1 in state_stats.columns:
         state_stats = state_stats.rename(
             columns={-1: "anomaly_count", 1: "normal_count"}
@@ -145,19 +214,24 @@ def analyze_phantom_village(db: Session):
     else:
         state_stats["anomaly_count"] = 0
         state_stats = state_stats.rename(columns={1: "normal_count"})
-    chart_data = state_stats.reset_index()[
-        ["state", "anomaly_count", "normal_count"]
-    ].to_dict(orient="records")
 
-    # 2. Map Data
-    anomalies = df[df["anomaly"] == -1].copy()
-    anomalies["type"] = "Phantom Village"
-    # Select critical columns
-    map_data = anomalies[
-        ["pincode", "district", "state", "age_18_greater", "type"]
-    ].to_dict(orient="records")
+    # 4. Final Formatting
+    chart_data = state_stats.reset_index().rename(columns={"normalized_state": "state"})
 
-    return {"chart_data": chart_data, "map_data": map_data}
+    # Sort alphabetically for consistent X-Axis
+    chart_data = chart_data.sort_values("state")
+
+    return {
+        "chart_data": chart_data.to_dict(orient="records"),
+        # Map data logic remains the same (using raw names is fine for coordinates lookup)
+        "map_data": (
+            df[df["anomaly"] == -1][
+                ["pincode", "district", "state", "age_18_greater", "type"]
+            ].to_dict(orient="records")
+            if "type" in df.columns
+            else []
+        ),
+    }
 
 
 # --- 2. UPDATE MILL (Unauthorized Bulk Ops) ---
